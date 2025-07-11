@@ -6,14 +6,12 @@ const FlexTimeTracker = () => {
   const [targetHours, setTargetHours] = useState(6);
   const [targetMinutes, setTargetMinutes] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [isWorking, setIsWorking] = useState(false);
   const [breakStart, setBreakStart] = useState('');
   const [breakEnd, setBreakEnd] = useState('');
-  const [isOnBreak, setIsOnBreak] = useState(false);
-  const [totalWorkHours, setTotalWorkHours] = useState(0);
-  const [totalWorkMinutes, setTotalWorkMinutes] = useState(0);
-  const [requiredHours, setRequiredHours] = useState(0);
-  const [requiredMinutes, setRequiredMinutes] = useState(0);
+  const [totalWorkHours, setTotalWorkHours] = useState('');
+  const [totalWorkMinutes, setTotalWorkMinutes] = useState('');
+  const [requiredHours, setRequiredHours] = useState('');
+  const [requiredMinutes, setRequiredMinutes] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -106,8 +104,8 @@ const FlexTimeTracker = () => {
 
   // 月次労働時間の超過不足を計算
   const calculateMonthlyBalance = () => {
-    const totalWorkInMinutes = (totalWorkHours * 60) + totalWorkMinutes;
-    const requiredInMinutes = (requiredHours * 60) + requiredMinutes;
+    const totalWorkInMinutes = (Number(totalWorkHours) * 60) + Number(totalWorkMinutes);
+    const requiredInMinutes = (Number(requiredHours) * 60) + Number(requiredMinutes);
     const balanceInMinutes = totalWorkInMinutes - requiredInMinutes;
     
     return {
@@ -150,36 +148,105 @@ const FlexTimeTracker = () => {
       <div className="max-w-md mx-auto">
         {/* ヘッダー */}
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">
+          <h1 className="text-2xl font-bold text-gray-800 mb-3">
             ✨ フレックスタイム管理 ✨
           </h1>
-          <p className="text-gray-600 text-sm">
-            {currentTime.toLocaleDateString('ja-JP', { 
-              month: 'long', 
-              day: 'numeric', 
-              weekday: 'long' 
-            })}
-          </p>
+          <div className="flex items-center justify-center h-6">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-600">
+                {currentTime.toLocaleDateString('ja-JP', { 
+                  month: 'long', 
+                  day: 'numeric', 
+                  weekday: 'long' 
+                })}
+              </span>
+              <span className="flex items-center text-gray-700">
+                <Clock className="text-pink-400 w-4 h-4 mx-1" />
+                {currentTime.toLocaleTimeString('ja-JP', { 
+                  hour: '2-digit', 
+                  minute: '2-digit',
+                  hour12: false 
+                })}
+                <span className="text-gray-400 ml-1">
+                  {currentTime.getSeconds().toString().padStart(2, '0')}
+                </span>
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* 現在時刻 */}
-        <div className="bg-white rounded-3xl shadow-lg p-6 mb-6 border border-pink-100">
-          <div className="flex items-center justify-center mb-4">
-            <Clock className="text-pink-400 w-6 h-6 mr-2" />
-            <span className="text-gray-700 font-medium">現在時刻</span>
-          </div>
-          <div className="text-center">
-            <div className="text-4xl font-bold text-gray-800 mb-2">
-              {currentTime.toLocaleTimeString('ja-JP', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: false 
-              })}
-            </div>
-            <div className="text-sm text-gray-500">
-              {currentTime.getSeconds().toString().padStart(2, '0')}秒
-            </div>
-          </div>
+        {/* 勤務状況表示 */}
+        <div className="bg-white rounded-3xl shadow-lg p-6 mb-6 border border-blue-100">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <Calendar className="text-blue-400 w-5 h-5 mr-2" />
+            勤務状況
+          </h2>
+
+          {startTime && (
+            <>
+              {/* プログレスバー */}
+              <div className="mb-4">
+                <div className="flex justify-between text-sm text-gray-600 mb-2">
+                  <span>進捗</span>
+                  <span>{Math.round(progressPercentage)}%</span>
+                </div>
+                <div className="w-full bg-pink-100 rounded-full h-3">
+                  <div 
+                    className="bg-gradient-to-r from-pink-400 to-purple-400 h-3 rounded-full transition-all duration-500"
+                    style={{ width: `${progressPercentage}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-center mb-4">
+                <div className="bg-pink-50 rounded-2xl p-4">
+                  <div className="text-2xl font-bold text-pink-600">
+                    {Math.floor(workingHours)}:{String(Math.floor((workingHours % 1) * 60)).padStart(2, '0')}
+                  </div>
+                  <div className="text-sm text-gray-600">現在の勤務時間</div>
+                </div>
+                
+                <div className="bg-purple-50 rounded-2xl p-4">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {Math.floor(remainingHours)}:{String(Math.floor((remainingHours % 1) * 60)).padStart(2, '0')}
+                  </div>
+                  <div className="text-sm text-gray-600">残り時間</div>
+                </div>
+              </div>
+
+              {/* 推奨退勤時間 */}
+              <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl text-center border border-blue-200">
+                <div className="text-sm text-gray-600 mb-1">推奨退勤時間</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {calculateEndTime()}
+                </div>
+              </div>
+
+              {/* 超過・不足メッセージ */}
+              {monthlyBalance.balanceInMinutes !== 0 && (
+                <div className={`p-4 rounded-2xl text-center text-sm ${
+                  monthlyBalance.isOvertime 
+                    ? 'bg-green-50 text-green-700' 
+                    : 'bg-orange-50 text-orange-700'
+                }`}>
+                  {monthlyBalance.isOvertime ? (
+                    <>
+                      🎉 今日は{monthlyBalance.hours > 0 ? `${monthlyBalance.hours}時間` : ''}{monthlyBalance.minutes}分早く帰っても大丈夫だよ！
+                      {earlyLeaveTime && (
+                        <div className="mt-1 font-semibold">
+                          {earlyLeaveTime}に退勤できるよ ✨
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      ⚠️ 今月は{monthlyBalance.hours > 0 ? `${monthlyBalance.hours}時間` : ''}{monthlyBalance.minutes}分不足しているよ
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* 設定エリア */}
@@ -233,30 +300,6 @@ const FlexTimeTracker = () => {
               <div className="text-sm text-gray-500 mt-1 text-center">
                 合計: {targetHours}時間{targetMinutes > 0 ? `${targetMinutes}分` : ''}
               </div>
-              
-              {/* 月次労働時間バランス表示 */}
-              {monthlyBalance.balanceInMinutes !== 0 && (
-                <div className={`mt-3 p-3 rounded-2xl text-center text-sm ${
-                  monthlyBalance.isOvertime 
-                    ? 'bg-green-50 text-green-700' 
-                    : 'bg-orange-50 text-orange-700'
-                }`}>
-                  {monthlyBalance.isOvertime ? (
-                    <>
-                      🎉 今日は{monthlyBalance.hours > 0 ? `${monthlyBalance.hours}時間` : ''}{monthlyBalance.minutes}分早く帰っても大丈夫だよ！
-                      {earlyLeaveTime && (
-                        <div className="mt-1 font-semibold">
-                          {earlyLeaveTime}に退勤できるよ ✨
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      ⚠️ 今月は{monthlyBalance.hours > 0 ? `${monthlyBalance.hours}時間` : ''}{monthlyBalance.minutes}分不足しているよ
-                    </>
-                  )}
-                </div>
-              )}
             </div>
 
             <div>
@@ -268,7 +311,7 @@ const FlexTimeTracker = () => {
                   type="number"
                   min="0"
                   value={totalWorkHours}
-                  onChange={(e) => setTotalWorkHours(Math.max(0, Number(e.target.value)))}
+                  onChange={(e) => setTotalWorkHours(e.target.value)}
                   className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
                   placeholder="時間"
                 />
@@ -277,7 +320,7 @@ const FlexTimeTracker = () => {
                   min="0"
                   max="59"
                   value={totalWorkMinutes}
-                  onChange={(e) => setTotalWorkMinutes(Math.max(0, Math.min(59, Number(e.target.value))))}
+                  onChange={(e) => setTotalWorkMinutes(e.target.value)}
                   className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
                   placeholder="分"
                 />
@@ -296,7 +339,7 @@ const FlexTimeTracker = () => {
                   type="number"
                   min="0"
                   value={requiredHours}
-                  onChange={(e) => setRequiredHours(Math.max(0, Number(e.target.value)))}
+                  onChange={(e) => setRequiredHours(e.target.value)}
                   className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
                   placeholder="時間"
                 />
@@ -305,7 +348,7 @@ const FlexTimeTracker = () => {
                   min="0"
                   max="59"
                   value={requiredMinutes}
-                  onChange={(e) => setRequiredMinutes(Math.max(0, Math.min(59, Number(e.target.value))))}
+                  onChange={(e) => setRequiredMinutes(e.target.value)}
                   className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
                   placeholder="分"
                 />
@@ -315,117 +358,82 @@ const FlexTimeTracker = () => {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                休憩開始時間
-              </label>
-              <input
-                type="time"
-                value={breakStart}
-                onChange={(e) => setBreakStart(e.target.value)}
-                className="w-full p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-              />
-            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  休憩開始
+                </label>
+                <input
+                  type="time"
+                  value={breakStart}
+                  onChange={(e) => setBreakStart(e.target.value)}
+                  className="w-full p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                休憩終了時間
-              </label>
-              <input
-                type="time"
-                value={breakEnd}
-                onChange={(e) => setBreakEnd(e.target.value)}
-                disabled={!breakStart}
-                className="w-full p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent disabled:bg-gray-100"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  休憩終了
+                </label>
+                <input
+                  type="time"
+                  value={breakEnd}
+                  onChange={(e) => setBreakEnd(e.target.value)}
+                  disabled={!breakStart}
+                  className="w-full p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent disabled:bg-gray-100"
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* 勤務状況 */}
+        {/* 勤務状況と休憩・退勤予定を横並びに */}
         {startTime && (
-          <div className="bg-white rounded-3xl shadow-lg p-6 mb-6 border border-blue-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <Calendar className="text-blue-400 w-5 h-5 mr-2" />
-              勤務状況
-            </h2>
-            
-            {/* プログレスバー */}
-            <div className="mb-4">
-              <div className="flex justify-between text-sm text-gray-600 mb-2">
-                <span>進捗</span>
-                <span>{Math.round(progressPercentage)}%</span>
-              </div>
-              <div className="w-full bg-pink-100 rounded-full h-3">
-                <div 
-                  className="bg-gradient-to-r from-pink-400 to-purple-400 h-3 rounded-full transition-all duration-500"
-                  style={{ width: `${progressPercentage}%` }}
-                ></div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 text-center">
-              <div className="bg-pink-50 rounded-2xl p-4">
-                <div className="text-2xl font-bold text-pink-600">
-                  {Math.floor(workingHours)}:{String(Math.floor((workingHours % 1) * 60)).padStart(2, '0')}
-                </div>
-                <div className="text-sm text-gray-600">現在の勤務時間</div>
-              </div>
+          <div className="max-w-md mx-auto">
+            {/* 休憩・退勤時間 */}
+            <div className="bg-white rounded-3xl shadow-lg p-6 border border-green-100">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <Coffee className="text-green-400 w-5 h-5 mr-2" />
+                休憩・退勤予定
+              </h2>
               
-              <div className="bg-purple-50 rounded-2xl p-4">
-                <div className="text-2xl font-bold text-purple-600">
-                  {Math.floor(remainingHours)}:{String(Math.floor((remainingHours % 1) * 60)).padStart(2, '0')}
-                </div>
-                <div className="text-sm text-gray-600">残り時間</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 休憩・退勤時間 */}
-        {startTime && (
-          <div className="bg-white rounded-3xl shadow-lg p-6 border border-green-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <Coffee className="text-green-400 w-5 h-5 mr-2" />
-              休憩・退勤予定
-            </h2>
-            
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-green-50 rounded-2xl">
-                <span className="text-gray-700">必要休憩時間</span>
-                <span className="font-semibold text-green-600">
-                  {breakInfo.required * 60}分
-                </span>
-              </div>
-              
-              {breakInfo.actual > 0 && (
-                <div className="flex justify-between items-center p-4 bg-yellow-50 rounded-2xl">
-                  <span className="text-gray-700">実際の休憩時間</span>
-                  <span className="font-semibold text-yellow-600">
-                    {Math.floor(breakInfo.actual * 60)}分
-                    {breakStart && !breakEnd && ' (休憩中)'}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center p-4 bg-green-50 rounded-2xl">
+                  <span className="text-gray-700">必要休憩時間</span>
+                  <span className="font-semibold text-green-600">
+                    {breakInfo.required * 60}分
                   </span>
                 </div>
-              )}
-              
-              <div className="flex justify-between items-center p-4 bg-blue-50 rounded-2xl">
-                <span className="text-gray-700">推奨退勤時間</span>
-                <span className="font-semibold text-blue-600 text-xl">
-                  {calculateEndTime()}
-                </span>
+                
+                {breakInfo.actual > 0 && (
+                  <div className="flex justify-between items-center p-4 bg-yellow-50 rounded-2xl">
+                    <span className="text-gray-700">実際の休憩時間</span>
+                    <span className="font-semibold text-yellow-600">
+                      {Math.floor(breakInfo.actual * 60)}分
+                      {breakStart && !breakEnd && ' (休憩中)'}
+                    </span>
+                  </div>
+                )}
+                
+                <div className="flex justify-between items-center p-4 bg-blue-50 rounded-2xl">
+                  <span className="text-gray-700">推奨退勤時間</span>
+                  <span className="font-semibold text-blue-600 text-xl">
+                    {calculateEndTime()}
+                  </span>
+                </div>
+                
+                {targetHours + (targetMinutes / 60) >= 6 && (
+                  <div className="text-xs text-gray-500 text-center">
+                    💡 6時間以上の勤務には45分の休憩が必要です
+                  </div>
+                )}
+                
+                {breakInfo.required > 0 && breakInfo.actual < breakInfo.required && (
+                  <div className="text-xs text-orange-500 text-center">
+                    ⚠️ 休憩時間が足りません（あと{Math.ceil((breakInfo.required - breakInfo.actual) * 60)}分）
+                  </div>
+                )}
               </div>
-              
-              {targetHours + (targetMinutes / 60) >= 6 && (
-                <div className="text-xs text-gray-500 text-center">
-                  💡 6時間以上の勤務には45分の休憩が必要です
-                </div>
-              )}
-              
-              {breakInfo.required > 0 && breakInfo.actual < breakInfo.required && (
-                <div className="text-xs text-orange-500 text-center">
-                  ⚠️ 休憩時間が足りません（あと{Math.ceil((breakInfo.required - breakInfo.actual) * 60)}分）
-                </div>
-              )}
             </div>
           </div>
         )}
