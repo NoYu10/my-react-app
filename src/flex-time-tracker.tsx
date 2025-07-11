@@ -10,6 +10,10 @@ const FlexTimeTracker = () => {
   const [breakStart, setBreakStart] = useState('');
   const [breakEnd, setBreakEnd] = useState('');
   const [isOnBreak, setIsOnBreak] = useState(false);
+  const [totalWorkHours, setTotalWorkHours] = useState(0);
+  const [totalWorkMinutes, setTotalWorkMinutes] = useState(0);
+  const [requiredHours, setRequiredHours] = useState(0);
+  const [requiredMinutes, setRequiredMinutes] = useState(0);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -26,7 +30,7 @@ const FlexTimeTracker = () => {
     
     let totalTime = currentTime.getTime() - start.getTime();
     
-    // 休憩時間を差し引く
+    // 休憩時間を差し引く（修正版）
     if (breakStart && breakEnd) {
       const breakStartTime = new Date();
       const [bsHours, bsMinutes] = breakStart.split(':');
@@ -39,13 +43,15 @@ const FlexTimeTracker = () => {
       const breakDuration = breakEndTime.getTime() - breakStartTime.getTime();
       totalTime -= breakDuration;
     } else if (breakStart && !breakEnd) {
-      // 休憩中の場合
+      // 実際に休憩時間になっている場合のみ差し引く
       const breakStartTime = new Date();
       const [bsHours, bsMinutes] = breakStart.split(':');
       breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
       
-      const breakDuration = currentTime.getTime() - breakStartTime.getTime();
-      totalTime -= breakDuration;
+      if (currentTime >= breakStartTime) {
+        const breakDuration = currentTime.getTime() - breakStartTime.getTime();
+        totalTime -= breakDuration;
+      }
     }
     
     return Math.max(0, totalTime / (1000 * 60 * 60));
@@ -71,8 +77,10 @@ const FlexTimeTracker = () => {
       const [bsHours, bsMinutes] = breakStart.split(':');
       breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
       
-      const currentBreak = (currentTime.getTime() - breakStartTime.getTime()) / (1000 * 60 * 60);
-      return { required: requiredBreak, actual: currentBreak };
+      if (currentTime >= breakStartTime) {
+        const currentBreak = (currentTime.getTime() - breakStartTime.getTime()) / (1000 * 60 * 60);
+        return { required: requiredBreak, actual: currentBreak };
+      }
     }
     
     return { required: requiredBreak, actual: 0 };
@@ -96,11 +104,46 @@ const FlexTimeTracker = () => {
     });
   };
 
+  // 月次労働時間の超過不足を計算
+  const calculateMonthlyBalance = () => {
+    const totalWorkInMinutes = (totalWorkHours * 60) + totalWorkMinutes;
+    const requiredInMinutes = (requiredHours * 60) + requiredMinutes;
+    const balanceInMinutes = totalWorkInMinutes - requiredInMinutes;
+    
+    return {
+      balanceInMinutes,
+      isOvertime: balanceInMinutes > 0,
+      hours: Math.floor(Math.abs(balanceInMinutes) / 60),
+      minutes: Math.abs(balanceInMinutes) % 60
+    };
+  };
+
+  // 早退可能時間を計算
+  const calculateEarlyLeaveTime = () => {
+    const balance = calculateMonthlyBalance();
+    if (!balance.isOvertime || !startTime) return null;
+    
+    const endTime = calculateEndTime();
+    const [endHours, endMinutes] = endTime.split(':');
+    const endDate = new Date();
+    endDate.setHours(parseInt(endHours), parseInt(endMinutes), 0, 0);
+    
+    const earlyLeaveTime = new Date(endDate.getTime() - (balance.balanceInMinutes * 60 * 1000));
+    
+    return earlyLeaveTime.toLocaleTimeString('ja-JP', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    });
+  };
+
   const workingHours = calculateWorkingTime();
   const totalTargetHours = targetHours + (targetMinutes / 60);
   const remainingHours = Math.max(0, totalTargetHours - workingHours);
   const progressPercentage = Math.min(100, (workingHours / totalTargetHours) * 100);
   const breakInfo = calculateBreakTime();
+  const monthlyBalance = calculateMonthlyBalance();
+  const earlyLeaveTime = calculateEarlyLeaveTime();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 p-4">
@@ -161,7 +204,7 @@ const FlexTimeTracker = () => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                目標勤務時間
+                所定勤務時間（日）
               </label>
               <div className="flex gap-2">
                 <select
@@ -179,7 +222,7 @@ const FlexTimeTracker = () => {
                 <select
                   value={targetMinutes}
                   onChange={(e) => setTargetMinutes(Number(e.target.value))}
-                  className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                  className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
                 >
                   <option value={0}>0分</option>
                   <option value={15}>15分</option>
@@ -189,6 +232,86 @@ const FlexTimeTracker = () => {
               </div>
               <div className="text-sm text-gray-500 mt-1 text-center">
                 合計: {targetHours}時間{targetMinutes > 0 ? `${targetMinutes}分` : ''}
+              </div>
+              
+              {/* 月次労働時間バランス表示 */}
+              {monthlyBalance.balanceInMinutes !== 0 && (
+                <div className={`mt-3 p-3 rounded-2xl text-center text-sm ${
+                  monthlyBalance.isOvertime 
+                    ? 'bg-green-50 text-green-700' 
+                    : 'bg-orange-50 text-orange-700'
+                }`}>
+                  {monthlyBalance.isOvertime ? (
+                    <>
+                      🎉 今日は{monthlyBalance.hours > 0 ? `${monthlyBalance.hours}時間` : ''}{monthlyBalance.minutes}分早く帰っても大丈夫だよ！
+                      {earlyLeaveTime && (
+                        <div className="mt-1 font-semibold">
+                          {earlyLeaveTime}に退勤できるよ ✨
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      ⚠️ 今月は{monthlyBalance.hours > 0 ? `${monthlyBalance.hours}時間` : ''}{monthlyBalance.minutes}分不足しているよ
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                本日までの総労働時間
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  value={totalWorkHours}
+                  onChange={(e) => setTotalWorkHours(Math.max(0, Number(e.target.value)))}
+                  className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
+                  placeholder="時間"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={totalWorkMinutes}
+                  onChange={(e) => setTotalWorkMinutes(Math.max(0, Math.min(59, Number(e.target.value))))}
+                  className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
+                  placeholder="分"
+                />
+              </div>
+              <div className="text-xs text-gray-500 mt-1 text-center">
+                ハーモス勤怠から転記してね
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                本日までの所定時間
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  value={requiredHours}
+                  onChange={(e) => setRequiredHours(Math.max(0, Number(e.target.value)))}
+                  className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
+                  placeholder="時間"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={requiredMinutes}
+                  onChange={(e) => setRequiredMinutes(Math.max(0, Math.min(59, Number(e.target.value))))}
+                  className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
+                  placeholder="分"
+                />
+              </div>
+              <div className="text-xs text-gray-500 mt-1 text-center">
+                ハーモス勤怠から転記してね
               </div>
             </div>
 
