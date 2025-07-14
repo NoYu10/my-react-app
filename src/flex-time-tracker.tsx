@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Clock, Target, Coffee, Calendar } from 'lucide-react';
 
 const FlexTimeTracker = () => {
@@ -12,52 +12,14 @@ const FlexTimeTracker = () => {
   const [totalWorkMinutes, setTotalWorkMinutes] = useState('');
   const [requiredHours, setRequiredHours] = useState('');
   const [requiredMinutes, setRequiredMinutes] = useState('');
+  const [notificationPermission, setNotificationPermission] = useState(false);
+  const [notificationShown, setNotificationShown] = useState(false);
+  const [earlyLeaveNotificationShown, setEarlyLeaveNotificationShown] = useState(false);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const calculateWorkingTime = () => {
-    if (!startTime) return 0;
-    const start = new Date();
-    const [hours, minutes] = startTime.split(':');
-    start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-    
-    let totalTime = currentTime.getTime() - start.getTime();
-    
-    // 休憩時間を差し引く（修正版）
-    if (breakStart && breakEnd) {
-      const breakStartTime = new Date();
-      const [bsHours, bsMinutes] = breakStart.split(':');
-      breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
-      
-      const breakEndTime = new Date();
-      const [beHours, beMinutes] = breakEnd.split(':');
-      breakEndTime.setHours(parseInt(beHours), parseInt(beMinutes), 0, 0);
-      
-      const breakDuration = breakEndTime.getTime() - breakStartTime.getTime();
-      totalTime -= breakDuration;
-    } else if (breakStart && !breakEnd) {
-      // 実際に休憩時間になっている場合のみ差し引く
-      const breakStartTime = new Date();
-      const [bsHours, bsMinutes] = breakStart.split(':');
-      breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
-      
-      if (currentTime >= breakStartTime) {
-        const breakDuration = currentTime.getTime() - breakStartTime.getTime();
-        totalTime -= breakDuration;
-      }
-    }
-    
-    return Math.max(0, totalTime / (1000 * 60 * 60));
-  };
-
-  const calculateBreakTime = () => {
+  // 計算関連の関数
+  const calculateBreakTime = useCallback(() => {
     const totalTargetHours = targetHours + (targetMinutes / 60);
-    const requiredBreak = totalTargetHours >= 6 ? 0.75 : 0; // 45分 or 0分
+    const requiredBreak = totalTargetHours >= 6 ? 0.75 : 0;
     
     if (breakStart && breakEnd) {
       const breakStartTime = new Date();
@@ -82,9 +44,42 @@ const FlexTimeTracker = () => {
     }
     
     return { required: requiredBreak, actual: 0 };
-  };
+  }, [targetHours, targetMinutes, breakStart, breakEnd, currentTime]);
 
-  const calculateEndTime = () => {
+  const calculateWorkingTime = useCallback(() => {
+    if (!startTime) return 0;
+    const start = new Date();
+    const [hours, minutes] = startTime.split(':');
+    start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    
+    let totalTime = currentTime.getTime() - start.getTime();
+    
+    if (breakStart && breakEnd) {
+      const breakStartTime = new Date();
+      const [bsHours, bsMinutes] = breakStart.split(':');
+      breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
+      
+      const breakEndTime = new Date();
+      const [beHours, beMinutes] = breakEnd.split(':');
+      breakEndTime.setHours(parseInt(beHours), parseInt(beMinutes), 0, 0);
+      
+      const breakDuration = breakEndTime.getTime() - breakStartTime.getTime();
+      totalTime -= breakDuration;
+    } else if (breakStart && !breakEnd) {
+      const breakStartTime = new Date();
+      const [bsHours, bsMinutes] = breakStart.split(':');
+      breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
+      
+      if (currentTime >= breakStartTime) {
+        const breakDuration = currentTime.getTime() - breakStartTime.getTime();
+        totalTime -= breakDuration;
+      }
+    }
+    
+    return Math.max(0, totalTime / (1000 * 60 * 60));
+  }, [startTime, currentTime, breakStart, breakEnd]);
+
+  const calculateEndTime = useCallback(() => {
     if (!startTime) return '--:--';
     const start = new Date();
     const [hours, minutes] = startTime.split(':');
@@ -100,10 +95,9 @@ const FlexTimeTracker = () => {
       minute: '2-digit',
       hour12: false 
     });
-  };
+  }, [startTime, targetHours, targetMinutes, calculateBreakTime]);
 
-  // 月次労働時間の超過不足を計算
-  const calculateMonthlyBalance = () => {
+  const calculateMonthlyBalance = useCallback(() => {
     const totalWorkInMinutes = (Number(totalWorkHours) * 60) + Number(totalWorkMinutes);
     const requiredInMinutes = (Number(requiredHours) * 60) + Number(requiredMinutes);
     const balanceInMinutes = totalWorkInMinutes - requiredInMinutes;
@@ -114,10 +108,9 @@ const FlexTimeTracker = () => {
       hours: Math.floor(Math.abs(balanceInMinutes) / 60),
       minutes: Math.abs(balanceInMinutes) % 60
     };
-  };
+  }, [totalWorkHours, totalWorkMinutes, requiredHours, requiredMinutes]);
 
-  // 早退可能時間を計算
-  const calculateEarlyLeaveTime = () => {
+  const calculateEarlyLeaveTime = useCallback(() => {
     const balance = calculateMonthlyBalance();
     if (!balance.isOvertime || !startTime) return null;
     
@@ -133,7 +126,170 @@ const FlexTimeTracker = () => {
       minute: '2-digit',
       hour12: false 
     });
-  };
+  }, [startTime, calculateMonthlyBalance, calculateEndTime]);
+
+  // 通知関連の関数
+  const saveNotificationPreference = useCallback((allowed: boolean) => {
+    localStorage.setItem('notificationsAllowed', allowed ? 'true' : 'false');
+  }, []);
+
+  const disableNotifications = useCallback(() => {
+    setNotificationPermission(false);
+    saveNotificationPreference(false);
+  }, [saveNotificationPreference]);
+
+  const showNotification = useCallback((title: string, body: string) => {
+    if (!notificationPermission) {
+      return;
+    }
+
+    if (!("Notification" in window)) {
+      return;
+    }
+
+    if (Notification.permission !== "granted") {
+      return;
+    }
+
+    try {
+      const notification = new Notification(title, {
+        body,
+        icon: "/favicon.ico",
+        requireInteraction: true,
+        tag: 'flex-time-notification' // 同じ種類の通知が重複しないようにする
+      });
+
+      notification.onclick = () => {
+        disableNotifications();
+        notification.close();
+      };
+
+      notification.onshow = () => {
+        // 通知が表示された時の処理
+      };
+
+      notification.onerror = () => {
+        // エラー時の処理
+      };
+    } catch (error) {
+      // エラー時の処理
+    }
+  }, [notificationPermission, disableNotifications]);
+
+  // タイマー関連のEffect
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 通知の初期化
+  useEffect(() => {
+    const setupNotifications = async () => {
+      try {
+        // 通知APIが利用可能かチェック
+        if (!("Notification" in window)) {
+          return;
+        }
+
+        // 既存の権限状態をチェック
+        if (Notification.permission === "denied") {
+          setNotificationPermission(false);
+          saveNotificationPreference(false);
+          return;
+        }
+
+        if (Notification.permission === "granted") {
+          setNotificationPermission(true);
+          saveNotificationPreference(true);
+          return;
+        }
+
+        // 権限が"default"の場合、ユーザーに許可を求める
+        const permission = await Notification.requestPermission();
+        
+        const isGranted = permission === "granted";
+        setNotificationPermission(isGranted);
+        saveNotificationPreference(isGranted);
+        
+        // テスト通知を送信
+        if (isGranted) {
+          new Notification("フレックスタイム管理", {
+            body: "通知が正常に設定されました！",
+            icon: "/favicon.ico"
+          });
+        }
+      } catch (error) {
+        console.error('通知の設定中にエラーが発生しました:', error);
+        setNotificationPermission(false);
+        saveNotificationPreference(false);
+      }
+    };
+
+    setupNotifications();
+    setNotificationShown(false);
+    setEarlyLeaveNotificationShown(false);
+  }, [saveNotificationPreference]);
+
+  // 推奨退勤時間の通知
+  useEffect(() => {
+    if (!startTime || !notificationPermission || notificationShown) {
+      return;
+    }
+
+    const checkEndTime = () => {
+      const endTime = calculateEndTime();
+      if (endTime === '--:--') return;
+
+      const now = new Date();
+      const currentTimeStr = now.toLocaleTimeString('ja-JP', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      });
+
+      if (currentTimeStr === endTime) {
+        showNotification(
+          "フレックスタイム管理",
+          "推奨退勤時間になりました！\n（通知を完全に止めるには設定から通知をオフにしてください）"
+        );
+        setNotificationShown(true);
+      }
+    };
+
+    const timer = setInterval(checkEndTime, 1000);
+    return () => clearInterval(timer);
+  }, [startTime, notificationPermission, notificationShown, calculateEndTime, showNotification]);
+
+  // 早退可能時間の通知
+  useEffect(() => {
+    if (!startTime || !notificationPermission || earlyLeaveNotificationShown) return;
+
+    const checkEarlyLeaveTime = () => {
+      const earlyTime = calculateEarlyLeaveTime();
+      if (!earlyTime) return;
+
+      const now = new Date();
+      const currentTimeStr = now.toLocaleTimeString('ja-JP', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      });
+
+      if (currentTimeStr === earlyTime) {
+        const balance = calculateMonthlyBalance();
+        showNotification(
+          "フレックスタイム管理",
+          `${balance.hours > 0 ? `${balance.hours}時間` : ''}${balance.minutes}分早く帰れます！\n（通知を完全に止めるには設定から通知をオフにしてください）`
+        );
+        setEarlyLeaveNotificationShown(true);
+      }
+    };
+
+    const timer = setInterval(checkEarlyLeaveTime, 1000);
+    return () => clearInterval(timer);
+  }, [startTime, notificationPermission, earlyLeaveNotificationShown, calculateEarlyLeaveTime, calculateMonthlyBalance, showNotification]);
 
   const workingHours = calculateWorkingTime();
   const totalTargetHours = targetHours + (targetMinutes / 60);
@@ -390,10 +546,9 @@ const FlexTimeTracker = () => {
         {startTime && (
           <div className="max-w-md mx-auto">
             {/* 休憩・退勤時間 */}
-            <div className="bg-white rounded-3xl shadow-lg p-6 border border-green-100">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            <div className="bg-white rounded-3xl shadow-lg p-6 border border-green-100">                <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                 <Coffee className="text-green-400 w-5 h-5 mr-2" />
-                休憩・退勤予定
+                休憩時間の管理
               </h2>
               
               <div className="space-y-4">
@@ -414,16 +569,9 @@ const FlexTimeTracker = () => {
                   </div>
                 )}
                 
-                <div className="flex justify-between items-center p-4 bg-blue-50 rounded-2xl">
-                  <span className="text-gray-700">推奨退勤時間</span>
-                  <span className="font-semibold text-blue-600 text-xl">
-                    {calculateEndTime()}
-                  </span>
-                </div>
-                
                 {targetHours + (targetMinutes / 60) >= 6 && (
                   <div className="text-xs text-gray-500 text-center">
-                    💡 6時間以上の勤務には45分の休憩が必要です
+                    💡 6時間を超える勤務の場合、45分の休憩が必要です
                   </div>
                 )}
                 
