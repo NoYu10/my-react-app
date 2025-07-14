@@ -302,60 +302,59 @@ const FlexTimeTracker = () => {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                本日までの総労働時間
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  value={totalWorkHours}
-                  onChange={(e) => setTotalWorkHours(e.target.value)}
-                  className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
-                  placeholder="時間"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  max="59"
-                  value={totalWorkMinutes}
-                  onChange={(e) => setTotalWorkMinutes(e.target.value)}
-                  className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
-                  placeholder="分"
-                />
+            <div className="grid grid-cols-2 gap-4 mb-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  本日までの総労働時間
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={totalWorkHours}
+                    onChange={(e) => setTotalWorkHours(e.target.value)}
+                    className="w-24 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
+                    placeholder="時間"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={totalWorkMinutes}
+                    onChange={(e) => setTotalWorkMinutes(e.target.value)}
+                    className="w-16 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
+                    placeholder="分"
+                  />
+                </div>
               </div>
-              <div className="text-xs text-gray-500 mt-1 text-center">
-                ハーモス勤怠から転記してね
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  本日までの所定時間
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={requiredHours}
+                    onChange={(e) => setRequiredHours(e.target.value)}
+                    className="w-24 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
+                    placeholder="時間"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={requiredMinutes}
+                    onChange={(e) => setRequiredMinutes(e.target.value)}
+                    className="w-16 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
+                    placeholder="分"
+                  />
+                </div>
               </div>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                本日までの所定時間
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  value={requiredHours}
-                  onChange={(e) => setRequiredHours(e.target.value)}
-                  className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
-                  placeholder="時間"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  max="59"
-                  value={requiredMinutes}
-                  onChange={(e) => setRequiredMinutes(e.target.value)}
-                  className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
-                  placeholder="分"
-                />
-              </div>
-              <div className="text-xs text-gray-500 mt-1 text-center">
-                ハーモス勤怠から転記してね
-              </div>
+            <div className="text-xs text-gray-500 text-center mb-4">
+              ハーモス勤怠から転記してね
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -439,8 +438,11 @@ const FlexTimeTracker = () => {
         )}
 
         {/* フッター */}
-        <div className="text-center mt-6 text-gray-400 text-sm">
-          コアタイム: 10:00 - 13:00
+        <div className="text-center mt-6 text-gray-400 text-sm space-y-1">
+          <div>【コアタイム】</div>
+          <div>10:00 - 16:00 (正社員)</div>
+          <div>10:00 - 13:00 (短時間正社員)</div>
+          <div>10:00 - 12:00 (パート社員)</div>
         </div>
       </div>
     </div>
