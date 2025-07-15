@@ -435,6 +435,8 @@ const FlexTimeTracker = () => {
                   onChange={(e) => setTargetHours(Number(e.target.value))}
                   className="flex-1 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
                 >
+                  <option value={1}>1時間</option>
+                  <option value={2}>2時間</option>
                   <option value={3}>3時間</option>
                   <option value={4}>4時間</option>
                   <option value={5}>5時間</option>
