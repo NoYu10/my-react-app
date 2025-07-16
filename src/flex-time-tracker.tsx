@@ -8,10 +8,12 @@ const FlexTimeTracker = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [breakStart, setBreakStart] = useState('');
   const [breakEnd, setBreakEnd] = useState('');
-  const [totalWorkHours, setTotalWorkHours] = useState('');
-  const [totalWorkMinutes, setTotalWorkMinutes] = useState('');
-  const [requiredHours, setRequiredHours] = useState('');
-  const [requiredMinutes, setRequiredMinutes] = useState('');
+  // --- ここから新しいstate ---
+  const [overtimeHours, setOvertimeHours] = useState(''); // 本日までの残業時間（時間）
+  const [overtimeMinutes, setOvertimeMinutes] = useState(''); // 本日までの残業時間（分）
+  const [shortageHours, setShortageHours] = useState(''); // 本日までの不足時間（時間）
+  const [shortageMinutes, setShortageMinutes] = useState(''); // 本日までの不足時間（分）
+  // --- ここまで新しいstate ---
   const [notificationPermission, setNotificationPermission] = useState(false);
   const [notificationShown, setNotificationShown] = useState(false);
   const [earlyLeaveNotificationShown, setEarlyLeaveNotificationShown] = useState(false);
@@ -97,18 +99,22 @@ const FlexTimeTracker = () => {
     });
   }, [startTime, targetHours, targetMinutes, calculateBreakTime]);
 
+  // --- ここから計算ロジック修正 ---
   const calculateMonthlyBalance = useCallback(() => {
-    const totalWorkInMinutes = (Number(totalWorkHours) * 60) + Number(totalWorkMinutes);
-    const requiredInMinutes = (Number(requiredHours) * 60) + Number(requiredMinutes);
-    const balanceInMinutes = totalWorkInMinutes - requiredInMinutes;
-    
+    // 残業時間（分）
+    const overtimeInMinutes = (Number(overtimeHours) * 60) + Number(overtimeMinutes);
+    // 不足時間（分）
+    const shortageInMinutes = (Number(shortageHours) * 60) + Number(shortageMinutes);
+    // 差分（分）
+    const balanceInMinutes = overtimeInMinutes - shortageInMinutes;
     return {
       balanceInMinutes,
       isOvertime: balanceInMinutes > 0,
       hours: Math.floor(Math.abs(balanceInMinutes) / 60),
       minutes: Math.abs(balanceInMinutes) % 60
     };
-  }, [totalWorkHours, totalWorkMinutes, requiredHours, requiredMinutes]);
+  }, [overtimeHours, overtimeMinutes, shortageHours, shortageMinutes]);
+  // --- ここまで計算ロジック修正 ---
 
   const calculateEarlyLeaveTime = useCallback(() => {
     const balance = calculateMonthlyBalance();
@@ -250,9 +256,19 @@ const FlexTimeTracker = () => {
       });
 
       if (currentTimeStr === endTime) {
+        const balance = calculateMonthlyBalance();
+        let notificationMessage = "推奨退勤時間になりました！";
+        
+        // 不足時間がある場合はその情報も追加
+        if (!balance.isOvertime && balance.balanceInMinutes !== 0) {
+          notificationMessage += `\n今月は${balance.hours > 0 ? `${balance.hours}時間` : ''}${balance.minutes}分不足しています。`;
+        }
+        
+        notificationMessage += "\n（通知を完全に止めるには設定から通知をオフにしてください）";
+        
         showNotification(
           "フレックスタイム管理",
-          "推奨退勤時間になりました！\n（通知を完全に止めるには設定から通知をオフにしてください）"
+          notificationMessage
         );
         setNotificationShown(true);
       }
@@ -463,14 +479,14 @@ const FlexTimeTracker = () => {
             <div className="grid grid-cols-2 gap-4 mb-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  本日までの総労働時間
+                  本日までの残業時間
                 </label>
                 <div className="flex gap-2">
                   <input
                     type="number"
                     min="0"
-                    value={totalWorkHours}
-                    onChange={(e) => setTotalWorkHours(e.target.value)}
+                    value={overtimeHours}
+                    onChange={(e) => setOvertimeHours(e.target.value)}
                     className="w-24 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
                     placeholder="時間"
                   />
@@ -478,24 +494,23 @@ const FlexTimeTracker = () => {
                     type="number"
                     min="0"
                     max="59"
-                    value={totalWorkMinutes}
-                    onChange={(e) => setTotalWorkMinutes(e.target.value)}
+                    value={overtimeMinutes}
+                    onChange={(e) => setOvertimeMinutes(e.target.value)}
                     className="w-16 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
                     placeholder="分"
                   />
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  本日までの所定時間
+                  本日までの不足時間
                 </label>
                 <div className="flex gap-2">
                   <input
                     type="number"
                     min="0"
-                    value={requiredHours}
-                    onChange={(e) => setRequiredHours(e.target.value)}
+                    value={shortageHours}
+                    onChange={(e) => setShortageHours(e.target.value)}
                     className="w-24 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
                     placeholder="時間"
                   />
@@ -503,8 +518,8 @@ const FlexTimeTracker = () => {
                     type="number"
                     min="0"
                     max="59"
-                    value={requiredMinutes}
-                    onChange={(e) => setRequiredMinutes(e.target.value)}
+                    value={shortageMinutes}
+                    onChange={(e) => setShortageMinutes(e.target.value)}
                     className="w-16 p-3 border border-pink-200 rounded-2xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-center"
                     placeholder="分"
                   />
@@ -512,7 +527,7 @@ const FlexTimeTracker = () => {
               </div>
             </div>
             <div className="text-xs text-gray-500 text-center mb-4">
-              ハーモス勤怠から転記してね
+              ハーモス勤怠の該当項目から転記してね
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -589,7 +604,7 @@ const FlexTimeTracker = () => {
 
         {/* フッター */}
         <div className="text-center mt-6 text-gray-400 text-sm space-y-1">
-          <div>【コアタイム】</div>
+          <div>⏰ コアタイム ⏰</div>
           <div>10:00 - 16:00 (正社員)</div>
           <div>10:00 - 13:00 (短時間正社員)</div>
           <div>10:00 - 12:00 (パート社員)</div>
