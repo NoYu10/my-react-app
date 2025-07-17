@@ -89,8 +89,9 @@ const FlexTimeTracker = () => {
     
     const breakInfo = calculateBreakTime();
     const totalTargetMinutes = (targetHours * 60) + targetMinutes;
-    const requiredBreakMinutes = breakInfo.required * 60;
-    const endTime = new Date(start.getTime() + (totalTargetMinutes * 60 * 1000) + (requiredBreakMinutes * 60 * 1000));
+    // 実際の休憩時間を使用する（必要休憩時間ではなく）
+    const actualBreakMinutes = breakInfo.actual * 60;
+    const endTime = new Date(start.getTime() + (totalTargetMinutes * 60 * 1000) + (actualBreakMinutes * 60 * 1000));
     
     return endTime.toLocaleTimeString('ja-JP', { 
       hour: '2-digit', 
