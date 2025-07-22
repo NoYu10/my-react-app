@@ -1,1 +1,36 @@
-<!doctype html><html lang="ja"><head><meta charset="UTF-8"/><title>Popup</title><script defer="defer" src="popup.js"></script></head><body><div id="root"></div><script src="../dist/popup.js"></script></body></html>
+<!doctype html><html lang="ja"><head><meta charset="UTF-8"/><title>Popup</title><style>body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        height: 100%;
+        width: 100%;
+        min-height: 800px;
+        min-width: 480px;
+      }
+      #root {
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+        min-height: 800px;
+        min-width: 480px;
+      }
+      /* Chrome拡張機能のポップアップウィンドウ自体のスクロールバーを非表示 */
+      ::-webkit-scrollbar {
+        display: none;
+      }
+      /* コンテンツ内のスクロールバーのみ表示 */
+      .popup-content::-webkit-scrollbar {
+        display: block;
+        width: 8px;
+      }
+      .popup-content::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+      }
+      .popup-content::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+      }
+      .popup-content::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+      }</style><script defer="defer" src="popup.js"></script></head><body><div id="root"></div></body></html>

@@ -3,6 +3,9 @@
   "name": "My React Chrome Extension",
   "version": "1.0.0",
   "description": "React + TypeScript製のChrome拡張サンプル",
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -11,7 +14,10 @@
       "128": "icon128.png"
     }
   },
-  "permissions": [],
+  "permissions": [
+    "notifications",
+    "storage"
+  ],
   "host_permissions": [],
   "icons": {
     "16": "icon16.png",
