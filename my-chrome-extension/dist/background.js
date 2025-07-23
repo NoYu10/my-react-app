@@ -1,0 +1,1 @@
+(()=>{"use strict";chrome.runtime.onInstalled.addListener(()=>{console.log("FlexTime Tracker Extension installed")}),chrome.notifications.onClicked.addListener(o=>{console.log("Notification clicked:",o),chrome.action.openPopup()}),chrome.notifications.onButtonClicked.addListener((o,e)=>{console.log("Notification button clicked:",o,e)})})();
