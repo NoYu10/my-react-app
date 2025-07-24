@@ -528,7 +528,7 @@ const FlexTimeTracker = () => {
               </div>
             </div>
             <div className="text-xs text-gray-500 text-center mb-4">
-              ハーモス勤怠の該当項目から転記してね
+              ハーモス勤怠の該当項目（右下）から転記
             </div>
 
             <div className="grid grid-cols-2 gap-4">
