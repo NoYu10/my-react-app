@@ -381,10 +381,10 @@ const Popup: React.FC = () => {
     <div 
       className="popup-content"
       style={{ 
-        width: '480px', 
+        width: '340px', // さらに狭く
         height: '800px', 
         overflowY: 'auto', 
-        padding: '24px', 
+        padding: '16px', // paddingも減らす
         backgroundColor: '#f8fafc',
         boxSizing: 'border-box',
         margin: '0',
@@ -575,7 +575,7 @@ const Popup: React.FC = () => {
                 <option value={45}>45分</option>
               </select>
             </div>
-            <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '4px', textAlign: 'center' }}>
+            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px', textAlign: 'center' }}>
               合計: {targetHours}時間{targetMinutes > 0 ? `${targetMinutes}分` : ''}
             </div>
           </div>
@@ -666,8 +666,8 @@ const Popup: React.FC = () => {
               </div>
             </div>
           </div>
-          <div style={{ fontSize: '9px', color: '#6b7280', textAlign: 'center' }}>
-            ハーモス勤怠の該当項目から転記してね
+          <div style={{ fontSize: '11px', color: '#6b7280', textAlign: 'center' }}>
+            ハーモス勤怠の該当項目（右下）から転記
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -743,13 +743,13 @@ const Popup: React.FC = () => {
             )}
             
             {targetHours + (targetMinutes / 60) >= 6 && (
-              <div style={{ fontSize: '9px', color: '#6b7280', textAlign: 'center' }}>
-                💡 6時間を超える勤務の場合、45分の休憩が必要です
+              <div style={{ fontSize: '11px', color: '#6b7280', textAlign: 'center' }}>
+                💡 6時間を超える勤務の場合、45分休憩が必要です
               </div>
             )}
             
             {breakInfo.required > 0 && breakInfo.actual < breakInfo.required && (
-              <div style={{ fontSize: '9px', color: '#ea580c', textAlign: 'center' }}>
+              <div style={{ fontSize: '13px', color: '#ea580c', textAlign: 'center' }}>
                 ⚠️ 休憩時間が足りません（あと{Math.ceil((breakInfo.required - breakInfo.actual) * 60)}分）
               </div>
             )}
@@ -758,7 +758,7 @@ const Popup: React.FC = () => {
       )}
 
       {/* フッター */}
-      <div style={{ textAlign: 'center', marginTop: '8px', color: '#9ca3af', fontSize: '9px' }}>
+      <div style={{ textAlign: 'center', marginTop: '8px', color: '#9ca3af', fontSize: '13px' }}>
         <div>⏰ コアタイム ⏰</div>
         <div>10:00 - 16:00 (正社員)</div>
         <div>10:00 - 13:00 (短時間正社員)</div>
