@@ -1,16 +1,16 @@
 {
-  "name": "my-chrome-extension",
+  "name": "flex-time-tracker",
   "version": "1.0.0",
+  "description": "フレックスタイム制度での勤務時間を効率的に管理するためのChrome拡張機能",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "webpack --mode=production",
     "start": "webpack serve --open"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "keywords": ["chrome-extension", "flex-time", "work-management", "react", "typescript"],
+  "author": "NoYu10",
+  "license": "MIT",
   "dependencies": {
     "lucide-react": "^0.525.0",
     "react": "^19.1.0",

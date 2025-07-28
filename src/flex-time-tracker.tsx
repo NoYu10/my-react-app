@@ -256,7 +256,17 @@ const FlexTimeTracker = () => {
         hour12: false 
       });
 
-      if (currentTimeStr === endTime) {
+      // 秒も含めて正確な時間比較
+      const currentTimeWithSeconds = now.toLocaleTimeString('ja-JP', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false 
+      });
+      
+      const endTimeWithSeconds = endTime + ':00';
+
+      if (currentTimeWithSeconds === endTimeWithSeconds) {
         const balance = calculateMonthlyBalance();
         let notificationMessage = "推奨退勤時間になりました！";
         
@@ -275,7 +285,8 @@ const FlexTimeTracker = () => {
       }
     };
 
-    const timer = setInterval(checkEndTime, 1000);
+    // より頻繁にチェックして精度を向上
+    const timer = setInterval(checkEndTime, 100);
     return () => clearInterval(timer);
   }, [startTime, notificationPermission, notificationShown, calculateEndTime, showNotification]);
 
@@ -288,13 +299,18 @@ const FlexTimeTracker = () => {
       if (!earlyTime) return;
 
       const now = new Date();
-      const currentTimeStr = now.toLocaleTimeString('ja-JP', { 
+      
+      // 秒も含めて正確な時間比較
+      const currentTimeWithSeconds = now.toLocaleTimeString('ja-JP', { 
         hour: '2-digit', 
         minute: '2-digit',
+        second: '2-digit',
         hour12: false 
       });
+      
+      const earlyTimeWithSeconds = earlyTime + ':00';
 
-      if (currentTimeStr === earlyTime) {
+      if (currentTimeWithSeconds === earlyTimeWithSeconds) {
         const balance = calculateMonthlyBalance();
         showNotification(
           "フレックスタイム管理",
@@ -304,7 +320,8 @@ const FlexTimeTracker = () => {
       }
     };
 
-    const timer = setInterval(checkEarlyLeaveTime, 1000);
+    // より頻繁にチェックして精度を向上
+    const timer = setInterval(checkEarlyLeaveTime, 100);
     return () => clearInterval(timer);
   }, [startTime, notificationPermission, earlyLeaveNotificationShown, calculateEarlyLeaveTime, calculateMonthlyBalance, showNotification]);
 
