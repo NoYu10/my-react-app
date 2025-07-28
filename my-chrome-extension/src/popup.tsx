@@ -312,16 +312,22 @@ const Popup: React.FC = () => {
       if (endTime === '--:--') return;
 
       const now = new Date();
-      const currentTimeStr = now.toLocaleTimeString('ja-JP', { 
+      
+      // 秒も含めて正確な時間比較
+      const currentTimeWithSeconds = now.toLocaleTimeString('ja-JP', { 
         hour: '2-digit', 
         minute: '2-digit',
+        second: '2-digit',
         hour12: false 
       });
+      
+      const endTimeWithSeconds = endTime + ':00';
 
-      if (currentTimeStr === endTime) {
+      if (currentTimeWithSeconds === endTimeWithSeconds) {
         const balance = calculateMonthlyBalance();
         let notificationMessage = "推奨退勤時間になりました！";
         
+        // 不足時間がある場合はその情報も追加
         if (!balance.isOvertime && balance.balanceInMinutes !== 0) {
           notificationMessage += `\n今月は${balance.hours > 0 ? `${balance.hours}時間` : ''}${balance.minutes}分不足しています。`;
         }
@@ -336,9 +342,10 @@ const Popup: React.FC = () => {
       }
     };
 
-    const timer = setInterval(checkEndTime, 1000);
+    // より頻繁にチェックして精度を向上
+    const timer = setInterval(checkEndTime, 100);
     return () => clearInterval(timer);
-  }, [startTime, notificationPermission, notificationShown, calculateEndTime, showNotification, calculateMonthlyBalance]);
+  }, [startTime, notificationPermission, notificationShown, calculateEndTime, showNotification]);
 
   // 早退可能時間の通知
   useEffect(() => {
@@ -349,13 +356,18 @@ const Popup: React.FC = () => {
       if (!earlyTime) return;
 
       const now = new Date();
-      const currentTimeStr = now.toLocaleTimeString('ja-JP', { 
+      
+      // 秒も含めて正確な時間比較
+      const currentTimeWithSeconds = now.toLocaleTimeString('ja-JP', { 
         hour: '2-digit', 
         minute: '2-digit',
+        second: '2-digit',
         hour12: false 
       });
+      
+      const earlyTimeWithSeconds = earlyTime + ':00';
 
-      if (currentTimeStr === earlyTime) {
+      if (currentTimeWithSeconds === earlyTimeWithSeconds) {
         const balance = calculateMonthlyBalance();
         showNotification(
           "フレックスタイム管理",
@@ -365,7 +377,8 @@ const Popup: React.FC = () => {
       }
     };
 
-    const timer = setInterval(checkEarlyLeaveTime, 1000);
+    // より頻繁にチェックして精度を向上
+    const timer = setInterval(checkEarlyLeaveTime, 100);
     return () => clearInterval(timer);
   }, [startTime, notificationPermission, earlyLeaveNotificationShown, calculateEarlyLeaveTime, calculateMonthlyBalance, showNotification]);
 
