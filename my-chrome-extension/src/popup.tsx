@@ -3,101 +3,74 @@ import { createRoot } from 'react-dom/client';
 import { Clock, Target, Coffee, Calendar } from 'lucide-react';
 
 const Popup: React.FC = () => {
-  const [startTime, setStartTime] = useState(() => {
-    const saved = localStorage.getItem('flexTime_startTime');
-    return saved || '';
-  });
-  const [targetHours, setTargetHours] = useState(() => {
-    const saved = localStorage.getItem('flexTime_targetHours');
-    return saved ? parseInt(saved) : 6;
-  });
-  const [targetMinutes, setTargetMinutes] = useState(() => {
-    const saved = localStorage.getItem('flexTime_targetMinutes');
-    return saved ? parseInt(saved) : 0;
-  });
+  const [startTime, setStartTime] = useState('');
+  const [targetHours, setTargetHours] = useState(6);
+  const [targetMinutes, setTargetMinutes] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [breakStart, setBreakStart] = useState(() => {
-    const saved = localStorage.getItem('flexTime_breakStart');
-    return saved || '';
-  });
-  const [breakEnd, setBreakEnd] = useState(() => {
-    const saved = localStorage.getItem('flexTime_breakEnd');
-    return saved || '';
-  });
-  const [overtimeHours, setOvertimeHours] = useState(() => {
-    const saved = localStorage.getItem('flexTime_overtimeHours');
-    return saved || '';
-  });
-  const [overtimeMinutes, setOvertimeMinutes] = useState(() => {
-    const saved = localStorage.getItem('flexTime_overtimeMinutes');
-    return saved || '';
-  });
-  const [shortageHours, setShortageHours] = useState(() => {
-    const saved = localStorage.getItem('flexTime_shortageHours');
-    return saved || '';
-  });
-  const [shortageMinutes, setShortageMinutes] = useState(() => {
-    const saved = localStorage.getItem('flexTime_shortageMinutes');
-    return saved || '';
-  });
+  const [breakStart, setBreakStart] = useState('');
+  const [breakEnd, setBreakEnd] = useState('');
+  const [overtimeHours, setOvertimeHours] = useState('');
+  const [overtimeMinutes, setOvertimeMinutes] = useState('');
+  const [shortageHours, setShortageHours] = useState('');
+  const [shortageMinutes, setShortageMinutes] = useState('');
   const [notificationPermission, setNotificationPermission] = useState(false);
   const [notificationShown, setNotificationShown] = useState(false);
   const [earlyLeaveNotificationShown, setEarlyLeaveNotificationShown] = useState(false);
 
-  // localStorageに保存する関数
-  const saveToLocalStorage = useCallback((key: string, value: string | number) => {
+  // chrome.storageに保存する関数
+  const saveToStorage = useCallback(async (key: string, value: string | number) => {
     try {
-      localStorage.setItem(`flexTime_${key}`, value.toString());
+      await chrome.storage.local.set({ [`flexTime_${key}`]: value.toString() });
     } catch (error) {
-      console.error('localStorage保存エラー:', error);
+      console.error('chrome.storage保存エラー:', error);
     }
   }, []);
 
-  // 値が変更されたときにlocalStorageに保存する関数
+  // 値が変更されたときにchrome.storageに保存する関数
   const handleStartTimeChange = useCallback((value: string) => {
     setStartTime(value);
-    saveToLocalStorage('startTime', value);
-  }, [saveToLocalStorage]);
+    saveToStorage('startTime', value);
+  }, [saveToStorage]);
 
   const handleTargetHoursChange = useCallback((value: number) => {
     setTargetHours(value);
-    saveToLocalStorage('targetHours', value);
-  }, [saveToLocalStorage]);
+    saveToStorage('targetHours', value);
+  }, [saveToStorage]);
 
   const handleTargetMinutesChange = useCallback((value: number) => {
     setTargetMinutes(value);
-    saveToLocalStorage('targetMinutes', value);
-  }, [saveToLocalStorage]);
+    saveToStorage('targetMinutes', value);
+  }, [saveToStorage]);
 
   const handleBreakStartChange = useCallback((value: string) => {
     setBreakStart(value);
-    saveToLocalStorage('breakStart', value);
-  }, [saveToLocalStorage]);
+    saveToStorage('breakStart', value);
+  }, [saveToStorage]);
 
   const handleBreakEndChange = useCallback((value: string) => {
     setBreakEnd(value);
-    saveToLocalStorage('breakEnd', value);
-  }, [saveToLocalStorage]);
+    saveToStorage('breakEnd', value);
+  }, [saveToStorage]);
 
   const handleOvertimeHoursChange = useCallback((value: string) => {
     setOvertimeHours(value);
-    saveToLocalStorage('overtimeHours', value);
-  }, [saveToLocalStorage]);
+    saveToStorage('overtimeHours', value);
+  }, [saveToStorage]);
 
   const handleOvertimeMinutesChange = useCallback((value: string) => {
     setOvertimeMinutes(value);
-    saveToLocalStorage('overtimeMinutes', value);
-  }, [saveToLocalStorage]);
+    saveToStorage('overtimeMinutes', value);
+  }, [saveToStorage]);
 
   const handleShortageHoursChange = useCallback((value: string) => {
     setShortageHours(value);
-    saveToLocalStorage('shortageHours', value);
-  }, [saveToLocalStorage]);
+    saveToStorage('shortageHours', value);
+  }, [saveToStorage]);
 
   const handleShortageMinutesChange = useCallback((value: string) => {
     setShortageMinutes(value);
-    saveToLocalStorage('shortageMinutes', value);
-  }, [saveToLocalStorage]);
+    saveToStorage('shortageMinutes', value);
+  }, [saveToStorage]);
 
   // 計算関連の関数
   const calculateBreakTime = useCallback(() => {
@@ -211,8 +184,8 @@ const Popup: React.FC = () => {
   }, [startTime, calculateMonthlyBalance, calculateEndTime]);
 
   // 通知関連の関数
-  const saveNotificationPreference = useCallback((allowed: boolean) => {
-    localStorage.setItem('notificationsAllowed', allowed ? 'true' : 'false');
+  const saveNotificationPreference = useCallback(async (allowed: boolean) => {
+    await chrome.storage.local.set({ notificationsAllowed: allowed ? 'true' : 'false' });
   }, []);
 
   const disableNotifications = useCallback(() => {
@@ -250,8 +223,46 @@ const Popup: React.FC = () => {
     }
   }, [notificationPermission, disableNotifications]);
 
-  // タイマー関連のEffect
+  // データ読み込みとタイマー関連のEffect
   useEffect(() => {
+    // chrome.storageからデータを読み込み
+    const loadData = async () => {
+      try {
+        const result = await chrome.storage.local.get([
+          'flexTime_startTime',
+          'flexTime_targetHours',
+          'flexTime_targetMinutes',
+          'flexTime_breakStart',
+          'flexTime_breakEnd',
+          'flexTime_overtimeHours',
+          'flexTime_overtimeMinutes',
+          'flexTime_shortageHours',
+          'flexTime_shortageMinutes',
+          'notificationsAllowed',
+          'notificationShown',
+          'earlyLeaveNotificationShown'
+        ]);
+
+        setStartTime(result.flexTime_startTime || '');
+        setTargetHours(result.flexTime_targetHours ? parseInt(result.flexTime_targetHours) : 6);
+        setTargetMinutes(result.flexTime_targetMinutes ? parseInt(result.flexTime_targetMinutes) : 0);
+        setBreakStart(result.flexTime_breakStart || '');
+        setBreakEnd(result.flexTime_breakEnd || '');
+        setOvertimeHours(result.flexTime_overtimeHours || '');
+        setOvertimeMinutes(result.flexTime_overtimeMinutes || '');
+        setShortageHours(result.flexTime_shortageHours || '');
+        setShortageMinutes(result.flexTime_shortageMinutes || '');
+        setNotificationPermission(result.notificationsAllowed === 'true');
+        setNotificationShown(result.notificationShown === 'true');
+        setEarlyLeaveNotificationShown(result.earlyLeaveNotificationShown === 'true');
+      } catch (error) {
+        console.error('データ読み込みエラー:', error);
+      }
+    };
+
+    loadData();
+
+    // タイマー設定
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
@@ -301,86 +312,31 @@ const Popup: React.FC = () => {
     setEarlyLeaveNotificationShown(false);
   }, [saveNotificationPreference]);
 
-  // 推奨退勤時間の通知
+  // Service Workerに通知チェックを委ねる
   useEffect(() => {
-    if (!startTime || !notificationPermission || notificationShown) {
-      return;
-    }
-
-    const checkEndTime = () => {
-      const endTime = calculateEndTime();
-      if (endTime === '--:--') return;
-
-      const now = new Date();
-      
-      // 秒も含めて正確な時間比較
-      const currentTimeWithSeconds = now.toLocaleTimeString('ja-JP', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false 
-      });
-      
-      const endTimeWithSeconds = endTime + ':00';
-
-      if (currentTimeWithSeconds === endTimeWithSeconds) {
-        const balance = calculateMonthlyBalance();
-        let notificationMessage = "推奨退勤時間になりました！";
-        
-        // 不足時間がある場合はその情報も追加
-        if (!balance.isOvertime && balance.balanceInMinutes !== 0) {
-          notificationMessage += `\n今月は${balance.hours > 0 ? `${balance.hours}時間` : ''}${balance.minutes}分不足しています。`;
+    // ポップアップが開かれたときにService Workerに通知チェック開始を要求
+    const startNotificationCheck = () => {
+      // Service Workerが利用可能かチェック
+      if (chrome.runtime && chrome.runtime.sendMessage) {
+        try {
+          // エラーを完全に抑制する安全な通信方法
+          chrome.runtime.sendMessage({ action: 'startNotificationCheck' }, (response) => {
+            // エラーがあっても無視（正常な動作）
+            if (chrome.runtime.lastError) {
+              // エラーをログに出力しない（ユーザーには見えない）
+            } else {
+              console.log('Service Worker通信成功');
+            }
+          });
+        } catch (error) {
+          // エラーをログに出力しない（ユーザーには見えない）
         }
-        
-        notificationMessage += "\n（通知を完全に止めるには設定から通知をオフにしてください）";
-        
-        showNotification(
-          "フレックスタイム管理",
-          notificationMessage
-        );
-        setNotificationShown(true);
       }
     };
-
-    // より頻繁にチェックして精度を向上
-    const timer = setInterval(checkEndTime, 100);
-    return () => clearInterval(timer);
-  }, [startTime, notificationPermission, notificationShown, calculateEndTime, showNotification]);
-
-  // 早退可能時間の通知
-  useEffect(() => {
-    if (!startTime || !notificationPermission || earlyLeaveNotificationShown) return;
-
-    const checkEarlyLeaveTime = () => {
-      const earlyTime = calculateEarlyLeaveTime();
-      if (!earlyTime) return;
-
-      const now = new Date();
-      
-      // 秒も含めて正確な時間比較
-      const currentTimeWithSeconds = now.toLocaleTimeString('ja-JP', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false 
-      });
-      
-      const earlyTimeWithSeconds = earlyTime + ':00';
-
-      if (currentTimeWithSeconds === earlyTimeWithSeconds) {
-        const balance = calculateMonthlyBalance();
-        showNotification(
-          "フレックスタイム管理",
-          `${balance.hours > 0 ? `${balance.hours}時間` : ''}${balance.minutes}分早く帰れます！\n（通知を完全に止めるには設定から通知をオフにしてください）`
-        );
-        setEarlyLeaveNotificationShown(true);
-      }
-    };
-
-    // より頻繁にチェックして精度を向上
-    const timer = setInterval(checkEarlyLeaveTime, 100);
-    return () => clearInterval(timer);
-  }, [startTime, notificationPermission, earlyLeaveNotificationShown, calculateEarlyLeaveTime, calculateMonthlyBalance, showNotification]);
+    
+    // より長い遅延でService Workerの初期化を待つ
+    setTimeout(startNotificationCheck, 1000);
+  }, []);
 
   const workingHours = calculateWorkingTime();
   const totalTargetHours = targetHours + (targetMinutes / 60);
