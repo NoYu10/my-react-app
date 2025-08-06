@@ -16,7 +16,8 @@
   },
   "permissions": [
     "notifications",
-    "storage"
+    "storage",
+    "alarms" 
   ],
   "host_permissions": [],
   "icons": {

@@ -13,9 +13,7 @@ const Popup: React.FC = () => {
   const [overtimeMinutes, setOvertimeMinutes] = useState('');
   const [shortageHours, setShortageHours] = useState('');
   const [shortageMinutes, setShortageMinutes] = useState('');
-  const [notificationPermission, setNotificationPermission] = useState(false);
-  const [notificationShown, setNotificationShown] = useState(false);
-  const [earlyLeaveNotificationShown, setEarlyLeaveNotificationShown] = useState(false);
+  const [notificationsAllowed, setNotificationsAllowed] = useState(false);
 
   // chrome.storageに保存する関数
   const saveToStorage = useCallback(async (key: string, value: string | number) => {
@@ -26,10 +24,20 @@ const Popup: React.FC = () => {
     }
   }, []);
 
+  const handleNotificationToggle = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const allowed = e.target.checked;
+    setNotificationsAllowed(allowed);
+    await chrome.storage.local.set({ notificationsAllowed: allowed ? 'true' : 'false' });
+    // Service Workerに通知チェックを即時開始/再設定させる
+    chrome.runtime.sendMessage({ action: 'startNotificationCheck' });
+  }, [setNotificationsAllowed]);
+
   // 値が変更されたときにchrome.storageに保存する関数
   const handleStartTimeChange = useCallback((value: string) => {
     setStartTime(value);
     saveToStorage('startTime', value);
+    // 出勤時間を変更したら、通知フラグをリセットして再度通知されるようにする
+    chrome.storage.local.set({ notificationShown: 'false', earlyLeaveNotificationShown: 'false' });
   }, [saveToStorage]);
 
   const handleTargetHoursChange = useCallback((value: number) => {
@@ -143,7 +151,10 @@ const Popup: React.FC = () => {
     
     const breakInfo = calculateBreakTime();
     const totalTargetMinutes = (targetHours * 60) + targetMinutes;
+
+    // ユーザーが入力した実績の休憩時間のみを加算する
     const actualBreakMinutes = breakInfo.actual * 60;
+
     const endTime = new Date(start.getTime() + (totalTargetMinutes * 60 * 1000) + (actualBreakMinutes * 60 * 1000));
     
     return endTime.toLocaleTimeString('ja-JP', { 
@@ -183,46 +194,6 @@ const Popup: React.FC = () => {
     });
   }, [startTime, calculateMonthlyBalance, calculateEndTime]);
 
-  // 通知関連の関数
-  const saveNotificationPreference = useCallback(async (allowed: boolean) => {
-    await chrome.storage.local.set({ notificationsAllowed: allowed ? 'true' : 'false' });
-  }, []);
-
-  const disableNotifications = useCallback(() => {
-    setNotificationPermission(false);
-    saveNotificationPreference(false);
-  }, [saveNotificationPreference]);
-
-  const showNotification = useCallback((title: string, body: string) => {
-    if (!notificationPermission) {
-      return;
-    }
-
-    if (!("Notification" in window)) {
-      return;
-    }
-
-    if (Notification.permission !== "granted") {
-      return;
-    }
-
-    try {
-      const notification = new Notification(title, {
-        body,
-        icon: "/favicon.ico",
-        requireInteraction: true,
-        tag: 'flex-time-notification'
-      });
-
-      notification.onclick = () => {
-        disableNotifications();
-        notification.close();
-      };
-    } catch (error) {
-      console.error('通知エラー:', error);
-    }
-  }, [notificationPermission, disableNotifications]);
-
   // データ読み込みとタイマー関連のEffect
   useEffect(() => {
     // chrome.storageからデータを読み込み
@@ -239,8 +210,6 @@ const Popup: React.FC = () => {
           'flexTime_shortageHours',
           'flexTime_shortageMinutes',
           'notificationsAllowed',
-          'notificationShown',
-          'earlyLeaveNotificationShown'
         ]);
 
         setStartTime(result.flexTime_startTime || '');
@@ -252,9 +221,7 @@ const Popup: React.FC = () => {
         setOvertimeMinutes(result.flexTime_overtimeMinutes || '');
         setShortageHours(result.flexTime_shortageHours || '');
         setShortageMinutes(result.flexTime_shortageMinutes || '');
-        setNotificationPermission(result.notificationsAllowed === 'true');
-        setNotificationShown(result.notificationShown === 'true');
-        setEarlyLeaveNotificationShown(result.earlyLeaveNotificationShown === 'true');
+        setNotificationsAllowed(result.notificationsAllowed === 'true');
       } catch (error) {
         console.error('データ読み込みエラー:', error);
       }
@@ -269,73 +236,25 @@ const Popup: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // 通知の初期化
-  useEffect(() => {
-    const setupNotifications = async () => {
-      try {
-        if (!("Notification" in window)) {
-          return;
-        }
-
-        if (Notification.permission === "denied") {
-          setNotificationPermission(false);
-          saveNotificationPreference(false);
-          return;
-        }
-
-        if (Notification.permission === "granted") {
-          setNotificationPermission(true);
-          saveNotificationPreference(true);
-          return;
-        }
-
-        const permission = await Notification.requestPermission();
-        const isGranted = permission === "granted";
-        setNotificationPermission(isGranted);
-        saveNotificationPreference(isGranted);
-        
-        if (isGranted) {
-          new Notification("フレックスタイム管理", {
-            body: "通知が正常に設定されました！",
-            icon: "/favicon.ico"
-          });
-        }
-      } catch (error) {
-        console.error('通知の設定中にエラーが発生しました:', error);
-        setNotificationPermission(false);
-        saveNotificationPreference(false);
-      }
-    };
-
-    setupNotifications();
-    setNotificationShown(false);
-    setEarlyLeaveNotificationShown(false);
-  }, [saveNotificationPreference]);
-
   // Service Workerに通知チェックを委ねる
   useEffect(() => {
     // ポップアップが開かれたときにService Workerに通知チェック開始を要求
     const startNotificationCheck = () => {
-      // Service Workerが利用可能かチェック
       if (chrome.runtime && chrome.runtime.sendMessage) {
-        try {
-          // エラーを完全に抑制する安全な通信方法
-          chrome.runtime.sendMessage({ action: 'startNotificationCheck' }, (response) => {
-            // エラーがあっても無視（正常な動作）
-            if (chrome.runtime.lastError) {
-              // エラーをログに出力しない（ユーザーには見えない）
-            } else {
-              console.log('Service Worker通信成功');
-            }
-          });
-        } catch (error) {
-          // エラーをログに出力しない（ユーザーには見えない）
-        }
+        chrome.runtime.sendMessage({ action: 'startNotificationCheck' }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('Service Workerへのメッセージ送信に失敗しました:', chrome.runtime.lastError.message);
+          } else {
+            console.log('Service Workerに通知チェックを開始するよう要求しました。', response);
+          }
+        });
+      } else {
+        console.warn('Service Workerとの通信APIが利用できません。');
       }
     };
     
-    // より長い遅延でService Workerの初期化を待つ
-    setTimeout(startNotificationCheck, 1000);
+    // ポップアップが開かれたらすぐにチェックを開始
+    startNotificationCheck();
   }, []);
 
   const workingHours = calculateWorkingTime();
@@ -475,6 +394,24 @@ const Popup: React.FC = () => {
           <Target style={{ color: '#a855f7', width: '18px', height: '18px', marginRight: '10px' }} />
           今日の設定
         </h2>
+
+        <label htmlFor="notification-toggle" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '12px', marginBottom: '16px', cursor: 'pointer' }}>
+          <span style={{ fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+            退勤時間の通知
+          </span>
+          <div style={{ position: 'relative', display: 'inline-block', width: '40px', height: '20px' }}>
+            <input
+              type="checkbox"
+              id="notification-toggle"
+              checked={notificationsAllowed}
+              onChange={handleNotificationToggle}
+              style={{ opacity: 0, width: 0, height: 0 }}
+            />
+            <span style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: notificationsAllowed ? '#22c55e' : '#e5e7eb', transition: '.4s', borderRadius: '20px' }}>
+              <span style={{ position: 'absolute', height: '16px', width: '16px', left: '2px', bottom: '2px', backgroundColor: 'white', transition: '.4s', borderRadius: '50%', transform: notificationsAllowed ? 'translateX(20px)' : 'translateX(0)' }}></span>
+            </span>
+          </div>
+        </label>
         
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div>
