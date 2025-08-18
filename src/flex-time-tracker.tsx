@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Clock, Target, Coffee, Calendar } from 'lucide-react';
+import {
+  calculateBreakTime,
+  calculateWorkingTime,
+  calculateEndTime,
+  calculateMonthlyBalance,
+  calculateEarlyLeaveTime
+} from './common/timeCalculations';
+import { TimeInput } from './common/types';
+import { saveToStorage, loadFromStorage } from './common/storage';
 
 const FlexTimeTracker = () => {
   const [startTime, setStartTime] = useState('');
@@ -17,136 +26,23 @@ const FlexTimeTracker = () => {
   const [notificationPermission, setNotificationPermission] = useState(false);
   const [notificationShown, setNotificationShown] = useState(false);
   const [earlyLeaveNotificationShown, setEarlyLeaveNotificationShown] = useState(false);
+  const [notificationsAllowed, setNotificationsAllowed] = useState(false);
 
-  // 計算関連の関数
-  const calculateBreakTime = useCallback(() => {
-    const totalTargetHours = targetHours + (targetMinutes / 60);
-    const requiredBreak = totalTargetHours >= 6 ? 0.75 : 0;
-    
-    if (breakStart && breakEnd) {
-      const breakStartTime = new Date();
-      const [bsHours, bsMinutes] = breakStart.split(':');
-      breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
-      
-      const breakEndTime = new Date();
-      const [beHours, beMinutes] = breakEnd.split(':');
-      breakEndTime.setHours(parseInt(beHours), parseInt(beMinutes), 0, 0);
-      
-      const actualBreak = (breakEndTime.getTime() - breakStartTime.getTime()) / (1000 * 60 * 60);
-      return { required: requiredBreak, actual: actualBreak };
-    } else if (breakStart && !breakEnd) {
-      const breakStartTime = new Date();
-      const [bsHours, bsMinutes] = breakStart.split(':');
-      breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
-      
-      if (currentTime >= breakStartTime) {
-        const currentBreak = (currentTime.getTime() - breakStartTime.getTime()) / (1000 * 60 * 60);
-        return { required: requiredBreak, actual: currentBreak };
-      }
-    }
-    
-    return { required: requiredBreak, actual: 0 };
-  }, [targetHours, targetMinutes, breakStart, breakEnd, currentTime]);
-
-  const calculateWorkingTime = useCallback(() => {
-    if (!startTime) return 0;
-    const start = new Date();
-    const [hours, minutes] = startTime.split(':');
-    start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-    
-    let totalTime = currentTime.getTime() - start.getTime();
-    
-    if (breakStart && breakEnd) {
-      const breakStartTime = new Date();
-      const [bsHours, bsMinutes] = breakStart.split(':');
-      breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
-      
-      const breakEndTime = new Date();
-      const [beHours, beMinutes] = breakEnd.split(':');
-      breakEndTime.setHours(parseInt(beHours), parseInt(beMinutes), 0, 0);
-      
-      const breakDuration = breakEndTime.getTime() - breakStartTime.getTime();
-      totalTime -= breakDuration;
-    } else if (breakStart && !breakEnd) {
-      const breakStartTime = new Date();
-      const [bsHours, bsMinutes] = breakStart.split(':');
-      breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
-      
-      if (currentTime >= breakStartTime) {
-        const breakDuration = currentTime.getTime() - breakStartTime.getTime();
-        totalTime -= breakDuration;
-      }
-    }
-    
-    return Math.max(0, totalTime / (1000 * 60 * 60));
-  }, [startTime, currentTime, breakStart, breakEnd]);
-
-  const calculateEndTime = useCallback(() => {
-    if (!startTime) return '--:--';
-    const start = new Date();
-    const [hours, minutes] = startTime.split(':');
-    start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-    
-    const breakInfo = calculateBreakTime();
-    const totalTargetMinutes = (targetHours * 60) + targetMinutes;
-    // 実際の休憩時間を使用する（必要休憩時間ではなく）
-    const actualBreakMinutes = breakInfo.actual * 60;
-    const endTime = new Date(start.getTime() + (totalTargetMinutes * 60 * 1000) + (actualBreakMinutes * 60 * 1000));
-    
-    return endTime.toLocaleTimeString('ja-JP', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    });
-  }, [startTime, targetHours, targetMinutes, calculateBreakTime]);
-
-  // --- ここから計算ロジック修正 ---
-  const calculateMonthlyBalance = useCallback(() => {
-    // 残業時間（分）
-    const overtimeInMinutes = (Number(overtimeHours) * 60) + Number(overtimeMinutes);
-    // 不足時間（分）
-    const shortageInMinutes = (Number(shortageHours) * 60) + Number(shortageMinutes);
-    // 差分（分）
-    const balanceInMinutes = overtimeInMinutes - shortageInMinutes;
-    return {
-      balanceInMinutes,
-      isOvertime: balanceInMinutes > 0,
-      hours: Math.floor(Math.abs(balanceInMinutes) / 60),
-      minutes: Math.abs(balanceInMinutes) % 60
-    };
-  }, [overtimeHours, overtimeMinutes, shortageHours, shortageMinutes]);
-  // --- ここまで計算ロジック修正 ---
-
-  const calculateEarlyLeaveTime = useCallback(() => {
-    const balance = calculateMonthlyBalance();
-    if (!balance.isOvertime || !startTime) return null;
-    
-    const endTime = calculateEndTime();
-    const [endHours, endMinutes] = endTime.split(':');
-    const endDate = new Date();
-    endDate.setHours(parseInt(endHours), parseInt(endMinutes), 0, 0);
-    
-    const earlyLeaveTime = new Date(endDate.getTime() - (balance.balanceInMinutes * 60 * 1000));
-    
-    return earlyLeaveTime.toLocaleTimeString('ja-JP', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    });
-  }, [startTime, calculateMonthlyBalance, calculateEndTime]);
+  // すべての計算は共通ライブラリから使用します
 
   // 通知関連の関数
   const saveNotificationPreference = useCallback((allowed: boolean) => {
-    localStorage.setItem('notificationsAllowed', allowed ? 'true' : 'false');
+    saveToStorage('notificationsAllowed', allowed);
   }, []);
 
   const disableNotifications = useCallback(() => {
     setNotificationPermission(false);
+    setNotificationsAllowed(false);
     saveNotificationPreference(false);
   }, [saveNotificationPreference]);
 
   const showNotification = useCallback((title: string, body: string) => {
-    if (!notificationPermission) {
+    if (!notificationPermission || !notificationsAllowed) {
       return;
     }
 
@@ -200,9 +96,14 @@ const FlexTimeTracker = () => {
           return;
         }
 
+        // ユーザーの通知設定を読み込む
+        const savedPreference = localStorage.getItem('notificationsAllowed');
+        setNotificationsAllowed(savedPreference === 'true');
+
         // 既存の権限状態をチェック
         if (Notification.permission === "denied") {
           setNotificationPermission(false);
+          setNotificationsAllowed(false);
           saveNotificationPreference(false);
           return;
         }
@@ -246,7 +147,7 @@ const FlexTimeTracker = () => {
     }
 
     const checkEndTime = () => {
-      const endTime = calculateEndTime();
+      const endTime = calculateEndTime(timeInput, currentTime);
       if (endTime === '--:--') return;
 
       const now = new Date();
@@ -267,7 +168,7 @@ const FlexTimeTracker = () => {
       const endTimeWithSeconds = endTime + ':00';
 
       if (currentTimeWithSeconds === endTimeWithSeconds) {
-        const balance = calculateMonthlyBalance();
+        const balance = calculateMonthlyBalance(timeInput);
         let notificationMessage = "推奨退勤時間になりました！";
         
         // 不足時間がある場合はその情報も追加
@@ -295,7 +196,7 @@ const FlexTimeTracker = () => {
     if (!startTime || !notificationPermission || earlyLeaveNotificationShown) return;
 
     const checkEarlyLeaveTime = () => {
-      const earlyTime = calculateEarlyLeaveTime();
+      const earlyTime = calculateEarlyLeaveTime(timeInput, currentTime);
       if (!earlyTime) return;
 
       const now = new Date();
@@ -311,7 +212,7 @@ const FlexTimeTracker = () => {
       const earlyTimeWithSeconds = earlyTime + ':00';
 
       if (currentTimeWithSeconds === earlyTimeWithSeconds) {
-        const balance = calculateMonthlyBalance();
+        const balance = calculateMonthlyBalance(timeInput);
         showNotification(
           "フレックスタイム管理",
           `${balance.hours > 0 ? `${balance.hours}時間` : ''}${balance.minutes}分早く帰れます！\n（通知を完全に止めるには設定から通知をオフにしてください）`
@@ -325,13 +226,25 @@ const FlexTimeTracker = () => {
     return () => clearInterval(timer);
   }, [startTime, notificationPermission, earlyLeaveNotificationShown, calculateEarlyLeaveTime, calculateMonthlyBalance, showNotification]);
 
-  const workingHours = calculateWorkingTime();
-  const totalTargetHours = targetHours + (targetMinutes / 60);
+  const timeInput: TimeInput = {
+    startTime,
+    targetHours,
+    targetMinutes,
+    breakStart,
+    breakEnd,
+    overtimeHours: Number(overtimeHours) || 0,
+    overtimeMinutes: Number(overtimeMinutes) || 0,
+    shortageHours: Number(shortageHours) || 0,
+    shortageMinutes: Number(shortageMinutes) || 0
+  };
+
+  const workingHours = calculateWorkingTime(timeInput, currentTime);
+  const totalTargetHours = Number(targetHours) + (Number(targetMinutes) / 60);
   const remainingHours = Math.max(0, totalTargetHours - workingHours);
   const progressPercentage = Math.min(100, (workingHours / totalTargetHours) * 100);
-  const breakInfo = calculateBreakTime();
-  const monthlyBalance = calculateMonthlyBalance();
-  const earlyLeaveTime = calculateEarlyLeaveTime();
+  const breakInfo = calculateBreakTime(timeInput, currentTime);
+  const monthlyBalance = calculateMonthlyBalance(timeInput);
+  const earlyLeaveTime = calculateEarlyLeaveTime(timeInput, currentTime);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 p-4">
@@ -408,7 +321,7 @@ const FlexTimeTracker = () => {
               <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl text-center border border-blue-200">
                 <div className="text-sm text-gray-600 mb-1">推奨退勤時間</div>
                 <div className="text-2xl font-bold text-blue-600">
-                  {calculateEndTime()}
+                  {calculateEndTime(timeInput, currentTime)}
                 </div>
               </div>
 
@@ -445,6 +358,29 @@ const FlexTimeTracker = () => {
             <Target className="text-purple-400 w-5 h-5 mr-2" />
             今日の設定
           </h2>
+
+          <div className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl mb-4 cursor-pointer">
+            <span className="text-sm font-medium text-gray-700">
+              退勤時間の通知
+            </span>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={notificationsAllowed}
+                onChange={(e) => {
+                  setNotificationsAllowed(e.target.checked);
+                  setNotificationPermission(e.target.checked);
+                  localStorage.setItem('notificationsAllowed', e.target.checked ? 'true' : 'false');
+                  if (e.target.checked) {
+                    setNotificationShown(false);
+                    setEarlyLeaveNotificationShown(false);
+                  }
+                }}
+              />
+              <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+            </label>
+          </div>
           
           <div className="space-y-4">
             <div>
