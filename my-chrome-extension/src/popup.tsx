@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Clock, Target, Coffee, Calendar } from 'lucide-react';
+import {
+  calculateBreakTime,
+  calculateWorkingTime,
+  calculateEndTime,
+  calculateMonthlyBalance,
+  calculateEarlyLeaveTime
+} from '../../src/common/timeCalculations';
+import { TimeInput } from '../../src/common/types';
+import { saveToStorage, loadFromStorage } from '../../src/common/storage';
 
 const Popup: React.FC = () => {
   const [startTime, setStartTime] = useState('');
@@ -15,14 +24,7 @@ const Popup: React.FC = () => {
   const [shortageMinutes, setShortageMinutes] = useState('');
   const [notificationsAllowed, setNotificationsAllowed] = useState(false);
 
-  // chrome.storageに保存する関数
-  const saveToStorage = useCallback(async (key: string, value: string | number) => {
-    try {
-      await chrome.storage.local.set({ [`flexTime_${key}`]: value.toString() });
-    } catch (error) {
-      console.error('chrome.storage保存エラー:', error);
-    }
-  }, []);
+  // ストレージ操作は共通のユーティリティを使用
 
   const handleNotificationToggle = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const allowed = e.target.checked;
@@ -80,119 +82,18 @@ const Popup: React.FC = () => {
     saveToStorage('shortageMinutes', value);
   }, [saveToStorage]);
 
-  // 計算関連の関数
-  const calculateBreakTime = useCallback(() => {
-    const totalTargetHours = targetHours + (targetMinutes / 60);
-    const requiredBreak = totalTargetHours >= 6 ? 0.75 : 0;
-    
-    if (breakStart && breakEnd) {
-      const breakStartTime = new Date();
-      const [bsHours, bsMinutes] = breakStart.split(':');
-      breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
-      
-      const breakEndTime = new Date();
-      const [beHours, beMinutes] = breakEnd.split(':');
-      breakEndTime.setHours(parseInt(beHours), parseInt(beMinutes), 0, 0);
-      
-      const actualBreak = (breakEndTime.getTime() - breakStartTime.getTime()) / (1000 * 60 * 60);
-      return { required: requiredBreak, actual: actualBreak };
-    } else if (breakStart && !breakEnd) {
-      const breakStartTime = new Date();
-      const [bsHours, bsMinutes] = breakStart.split(':');
-      breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
-      
-      if (currentTime >= breakStartTime) {
-        const currentBreak = (currentTime.getTime() - breakStartTime.getTime()) / (1000 * 60 * 60);
-        return { required: requiredBreak, actual: currentBreak };
-      }
-    }
-    
-    return { required: requiredBreak, actual: 0 };
-  }, [targetHours, targetMinutes, breakStart, breakEnd, currentTime]);
-
-  const calculateWorkingTime = useCallback(() => {
-    if (!startTime) return 0;
-    const start = new Date();
-    const [hours, minutes] = startTime.split(':');
-    start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-    
-    let totalTime = currentTime.getTime() - start.getTime();
-    
-    if (breakStart && breakEnd) {
-      const breakStartTime = new Date();
-      const [bsHours, bsMinutes] = breakStart.split(':');
-      breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
-      
-      const breakEndTime = new Date();
-      const [beHours, beMinutes] = breakEnd.split(':');
-      breakEndTime.setHours(parseInt(beHours), parseInt(beMinutes), 0, 0);
-      
-      const breakDuration = breakEndTime.getTime() - breakStartTime.getTime();
-      totalTime -= breakDuration;
-    } else if (breakStart && !breakEnd) {
-      const breakStartTime = new Date();
-      const [bsHours, bsMinutes] = breakStart.split(':');
-      breakStartTime.setHours(parseInt(bsHours), parseInt(bsMinutes), 0, 0);
-      
-      if (currentTime >= breakStartTime) {
-        const breakDuration = currentTime.getTime() - breakStartTime.getTime();
-        totalTime -= breakDuration;
-      }
-    }
-    
-    return Math.max(0, totalTime / (1000 * 60 * 60));
-  }, [startTime, currentTime, breakStart, breakEnd]);
-
-  const calculateEndTime = useCallback(() => {
-    if (!startTime) return '--:--';
-    const start = new Date();
-    const [hours, minutes] = startTime.split(':');
-    start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-    
-    const breakInfo = calculateBreakTime();
-    const totalTargetMinutes = (targetHours * 60) + targetMinutes;
-
-    // ユーザーが入力した実績の休憩時間のみを加算する
-    const actualBreakMinutes = breakInfo.actual * 60;
-
-    const endTime = new Date(start.getTime() + (totalTargetMinutes * 60 * 1000) + (actualBreakMinutes * 60 * 1000));
-    
-    return endTime.toLocaleTimeString('ja-JP', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    });
-  }, [startTime, targetHours, targetMinutes, calculateBreakTime]);
-
-  const calculateMonthlyBalance = useCallback(() => {
-    const overtimeInMinutes = (Number(overtimeHours) * 60) + Number(overtimeMinutes);
-    const shortageInMinutes = (Number(shortageHours) * 60) + Number(shortageMinutes);
-    const balanceInMinutes = overtimeInMinutes - shortageInMinutes;
-    return {
-      balanceInMinutes,
-      isOvertime: balanceInMinutes > 0,
-      hours: Math.floor(Math.abs(balanceInMinutes) / 60),
-      minutes: Math.abs(balanceInMinutes) % 60
-    };
-  }, [overtimeHours, overtimeMinutes, shortageHours, shortageMinutes]);
-
-  const calculateEarlyLeaveTime = useCallback(() => {
-    const balance = calculateMonthlyBalance();
-    if (!balance.isOvertime || !startTime) return null;
-    
-    const endTime = calculateEndTime();
-    const [endHours, endMinutes] = endTime.split(':');
-    const endDate = new Date();
-    endDate.setHours(parseInt(endHours), parseInt(endMinutes), 0, 0);
-    
-    const earlyLeaveTime = new Date(endDate.getTime() - (balance.balanceInMinutes * 60 * 1000));
-    
-    return earlyLeaveTime.toLocaleTimeString('ja-JP', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    });
-  }, [startTime, calculateMonthlyBalance, calculateEndTime]);
+  // 計算関連の関数を共通ライブラリから使用
+  const timeInput = {
+    startTime,
+    targetHours,
+    targetMinutes,
+    breakStart,
+    breakEnd,
+    overtimeHours: Number(overtimeHours),
+    overtimeMinutes: Number(overtimeMinutes),
+    shortageHours: Number(shortageHours),
+    shortageMinutes: Number(shortageMinutes)
+  };
 
   // データ読み込みとタイマー関連のEffect
   useEffect(() => {
@@ -257,13 +158,13 @@ const Popup: React.FC = () => {
     startNotificationCheck();
   }, []);
 
-  const workingHours = calculateWorkingTime();
+  const workingHours = calculateWorkingTime(timeInput, currentTime);
   const totalTargetHours = targetHours + (targetMinutes / 60);
   const remainingHours = Math.max(0, totalTargetHours - workingHours);
   const progressPercentage = Math.min(100, (workingHours / totalTargetHours) * 100);
-  const breakInfo = calculateBreakTime();
-  const monthlyBalance = calculateMonthlyBalance();
-  const earlyLeaveTime = calculateEarlyLeaveTime();
+  const breakInfo = calculateBreakTime(timeInput, currentTime);
+  const monthlyBalance = calculateMonthlyBalance(timeInput);
+  const earlyLeaveTime = calculateEarlyLeaveTime(timeInput, currentTime);
 
   return (
     <div 
@@ -354,7 +255,7 @@ const Popup: React.FC = () => {
             <div style={{ marginBottom: '16px', padding: '16px', background: 'linear-gradient(to right, #eff6ff, #faf5ff)', borderRadius: '12px', textAlign: 'center', border: '1px solid #bfdbfe' }}>
               <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '6px' }}>推奨退勤時間</div>
               <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#2563eb' }}>
-                {calculateEndTime()}
+                {calculateEndTime(timeInput, currentTime)}
               </div>
             </div>
 
