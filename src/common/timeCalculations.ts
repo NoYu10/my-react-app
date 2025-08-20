@@ -119,9 +119,10 @@ export const calculateEndTime = (
   
   const breakInfo = calculateBreakTime(input, now);
   const totalTargetMinutes = (Number(targetHours) * 60) + Number(targetMinutes);
-  const requiredBreakMinutes = breakInfo.required * 60;
+  // 休憩時間は実際に取得した場合のみ考慮する（必須休憩時間は考慮しない）
+  const actualBreakMinutes = breakInfo.actual * 60;
   
-  const endTime = new Date(start.getTime() + (totalTargetMinutes * 60 * 1000) + (requiredBreakMinutes * 60 * 1000));
+  const endTime = new Date(start.getTime() + (totalTargetMinutes * 60 * 1000) + (actualBreakMinutes * 60 * 1000));
   
   return endTime.toLocaleTimeString('ja-JP', { 
     hour: '2-digit', 
@@ -132,10 +133,16 @@ export const calculateEndTime = (
 
 // 月次バランスの計算
 export const calculateMonthlyBalance = (input: ExtendedTimeInput): MonthlyBalance => {
-  const { totalWorkHours = '0', totalWorkMinutes = '0', requiredHours = '0', requiredMinutes = '0' } = input;
-  const totalWorkInMinutes = (Number(totalWorkHours) * 60) + Number(totalWorkMinutes);
-  const requiredInMinutes = (Number(requiredHours) * 60) + Number(requiredMinutes);
-  const balanceInMinutes = totalWorkInMinutes - requiredInMinutes;
+  const { 
+    overtimeHours = '0', 
+    overtimeMinutes = '0', 
+    shortageHours = '0', 
+    shortageMinutes = '0' 
+  } = input;
+  
+  const overtimeInMinutes = (Number(overtimeHours) * 60) + Number(overtimeMinutes);
+  const shortageInMinutes = (Number(shortageHours) * 60) + Number(shortageMinutes);
+  const balanceInMinutes = overtimeInMinutes - shortageInMinutes;
   
   return {
     balanceInMinutes,
